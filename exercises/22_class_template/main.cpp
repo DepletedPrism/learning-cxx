@@ -1,5 +1,7 @@
 ﻿#include "../exercise.h"
+#include <cassert>
 #include <cstring>
+#include <utility>
 // READ: 类模板 <https://zh.cppreference.com/w/cpp/language/class_template>
 
 template<class T>
@@ -9,7 +11,11 @@ struct Tensor4D {
 
     Tensor4D(unsigned int const shape_[4], T const *data_) {
         unsigned int size = 1;
+        std::memcpy(shape, shape_, sizeof(shape));
         // TODO: 填入正确的 shape 并计算 size
+        for (size_t i = 0; i < 4; ++i) {
+            size *= shape_[i];
+        }
         data = new T[size];
         std::memcpy(data, data_, size * sizeof(T));
     }
@@ -28,6 +34,30 @@ struct Tensor4D {
     // 则 `this` 与 `others` 相加时，3 个形状为 `[1, 2, 1, 4]` 的子张量各自与 `others` 对应项相加。
     Tensor4D &operator+=(Tensor4D const &others) {
         // TODO: 实现单向广播的加法
+        auto boardcast = [this, &others = std::as_const(others)](size_t d, size_t index) -> size_t {
+            if (shape[d] != others.shape[d]) {
+                assert(others.shape[d] == 1);
+                return 0;
+            }
+            return index;
+        };
+        auto offset = [](const unsigned int shape[], size_t i, size_t j, size_t k, size_t l) -> size_t {
+            return ((shape[1] * i + j) * shape[2] + k) * shape[3] + l;
+        };
+
+        for (size_t i = 0; i < shape[0]; ++i) {
+            size_t ni = boardcast(0, i);
+            for (size_t j = 0; j < shape[1]; ++j) {
+                size_t nj = boardcast(1, j);
+                for (size_t k = 0; k < shape[2]; ++k) {
+                    size_t nk = boardcast(2, k);
+                    for (size_t l = 0; l < shape[3]; ++l) {
+                        size_t nl = boardcast(3, l);
+                        data[offset(shape, i, j, k, l)] += others.data[offset(others.shape, ni, nj, nk, nl)];
+                    }
+                }
+            }
+        }
         return *this;
     }
 };
